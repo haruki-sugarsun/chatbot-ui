@@ -28,6 +28,26 @@ import { PluginSelect } from './PluginSelect';
 import { PromptList } from './PromptList';
 import { VariableModal } from './VariableModal';
 
+// Haruki MOD: Audio Input.
+declare class webkitSpeechRecognition {
+  continuous: boolean;
+  interimResults: boolean;
+  onend: Function;
+  onresult: Function;
+
+  start: Function;
+  abort: Function;
+}
+declare class SpeechRecognition {
+  // constructor(greeting: string);
+  // greeting: string;
+  // showGreeting(): void;
+  abort: Function;
+}
+declare class SpeechRecognitionEvent {
+  results: SpeechRecognitionResultList;
+}
+
 interface Props {
   onSend: (message: Message, plugin: Plugin | null) => void;
   onRegenerate: () => void;
@@ -62,6 +82,10 @@ export const ChatInput = ({
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [showPluginSelect, setShowPluginSelect] = useState(false);
   const [plugin, setPlugin] = useState<Plugin | null>(null);
+
+  // Haruki MOD: Audio Input.
+  const speechRecog = useRef<SpeechRecognition | null>(null);
+
 
   const promptListRef = useRef<HTMLUListElement | null>(null);
 
@@ -104,6 +128,80 @@ export const ChatInput = ({
     if (window.innerWidth < 640 && textareaRef && textareaRef.current) {
       textareaRef.current.blur();
     }
+  };
+
+  // Haruki MOD. Audio Input.
+  // var recognition: SpeechRecognition = null;
+  var remainingPrompt = '';
+  function startSTT() { // For internal state management.
+    var SpeechRecognition = webkitSpeechRecognition;// || SpeechRecognition;
+    var r = new SpeechRecognition();
+    r.continuous = true; // これこれ
+    r.interimResults = true; // これこれ
+    // TODO React-way
+    // document.getElementById('sttmic').style.background = 'pink';
+
+    r.onend = (event: Event) => {
+      // console.log(event.results);
+      endSTT();
+    }
+
+    r.onresult = (event: SpeechRecognitionEvent) => {
+      console.log(event.results);
+      var p = '';
+      for (let i = 0; i < event.results.length; i++) {
+          for (let j = 0; j < event.results.item(i).length; j++) {
+              console.log('transcript piece: ' + event.results[i][j].transcript);
+              p += event.results[i][j].transcript;
+          }
+      }
+
+      console.log('Current prompt: ' + p);
+      if (p.replaceAll(' ', '').endsWith('認識クリア')) {
+          clearSTT();
+          return;
+      } else if (p.replaceAll(' ', '').endsWith('認識ストップ')) {
+          stopSTT();
+          console.log(`[${p}]`);
+          // TODO: Update Mod/
+          setContent(p.replace(/ *認識 *ストップ *$/, ''));
+          return;
+      }
+
+      // TODO: Keep a remaining prompt?
+      setContent(p);
+    }
+    r.start();
+    speechRecog.current = r;
+  }
+
+  function endSTT() { // For internal state management.
+    speechRecog.current && speechRecog.current.abort();
+    speechRecog.current = null;
+    // document.getElementById('sttmic').style.background = '';
+  }
+
+  function stopSTT() {
+    endSTT();
+    remainingPrompt = ''
+  }
+
+  function clearSTT() {
+    endSTT();
+    remainingPrompt = ''
+    // TODO React-way
+    setContent('');
+  }
+  const handleMic = () => {
+    console.log('handleMic', handleMic);
+
+    if (speechRecog.current) {
+      endSTT();
+      handleSend();
+      return;
+    }
+
+    startSTT();
   };
 
   const handleStopConversation = () => {
@@ -336,11 +434,18 @@ export const ChatInput = ({
           />
 
           <button
+            className="absolute right-8 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
+            onClick={handleMic}
+          >
+            🎤
+          </button>
+
+          <button
             className="absolute right-2 top-2 rounded-sm p-1 text-neutral-800 opacity-60 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-100 dark:hover:text-neutral-200"
             onClick={handleSend}
           >
             {messageIsStreaming ? (
-              <div className="h-4 w-4 animate-spin rounded-full border-t-2 border-neutral-800 opacity-60 dark:border-neutral-100"></div>
+              <div className="h-4 w-4 animate-spin rounded-full border-t-2 border-neutral-800 opacity-60 dark:border-neutral-100">streaming</div>
             ) : (
               <IconSend size={18} />
             )}
