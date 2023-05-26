@@ -17,6 +17,19 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const { model, messages, key, prompt, temperature } = (await req.json()) as ChatBody;
 
+    // Hacky patch
+    console.log(`model before hack: ${model}`);
+    if (model.tokenLimit == undefined) {
+      // -200 are workaround..
+      if (model.id == "gpt-3.5-turbo") {
+        model.tokenLimit = 4097 - 200;
+      } else if (model.id == 'gpt-4') {
+        model.tokenLimit = 8192 - 200;
+      }
+    }
+    console.log(`model after hack:  ${model}`);
+
+
     await init((imports) => WebAssembly.instantiate(wasm, imports));
     const encoding = new Tiktoken(
       tiktokenModel.bpe_ranks,
@@ -51,7 +64,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     encoding.free();
-
+    console.log(`token count: ${tokenCount}/${model.tokenLimit}. message count: ${messagesToSend.length}`);
     const stream = await OpenAIStream(model, promptToSend, temperatureToUse, key, messagesToSend);
 
     return new Response(stream);
