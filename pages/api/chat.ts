@@ -18,7 +18,7 @@ const handler = async (req: Request): Promise<Response> => {
     const { model, messages, key, prompt, temperature } = (await req.json()) as ChatBody;
 
     // Hacky patch
-    console.log(`model before hack: ${model}`);
+    console.log(`model before hack: ${JSON.stringify(model)}`);
     if (model.tokenLimit == undefined) {
       // -200 are workaround..
       if (model.id == "gpt-3.5-turbo") {
@@ -27,7 +27,7 @@ const handler = async (req: Request): Promise<Response> => {
         model.tokenLimit = 8192 - 200;
       }
     }
-    console.log(`model after hack:  ${model}`);
+    console.log(`model after hack:  ${JSON.stringify(model)}`);
 
 
     await init((imports) => WebAssembly.instantiate(wasm, imports));
